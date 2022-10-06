@@ -64,10 +64,17 @@ func (j Join) Apply(db *gorm.DB) *gorm.DB {
 }
 
 type Select struct {
-	Query string
-	Args  []any
+	Fields []interface{}
 }
 
 func (j Select) Apply(db *gorm.DB) *gorm.DB {
-	return db.Select(j.Query, j.Args...)
+	if len(j.Fields) == 0 {
+		return db
+	}
+
+	if len(j.Fields) == 1 {
+		return db.Select(j.Fields[0])
+	} else {
+		return db.Select(j.Fields[0], j.Fields[1:]...)
+	}
 }
