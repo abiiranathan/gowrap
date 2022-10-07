@@ -1,4 +1,4 @@
-package gowrap
+package orm
 
 import (
 	"bufio"
@@ -173,6 +173,7 @@ func ParseDSN(dsn string, params *DSNParamas) {
 }
 
 // writes sql statements to drop all postgres functions/procedures to w
+// Works only for postgres
 func WriteDropFunctionsQueries(db *gorm.DB, w *bufio.Writer) error {
 	sql := `SELECT 'DROP FUNCTION IF EXISTS ' || ns.nspname || '.' || proname 
 	 || '(' || oidvectortypes(proargtypes) || ');' FROM pg_proc INNER JOIN pg_namespace ns
@@ -182,8 +183,9 @@ func WriteDropFunctionsQueries(db *gorm.DB, w *bufio.Writer) error {
 
 }
 
-// writes sql statements to drop all views to w
-// Important for migrations
+// writes sql statements to drop all views to w.
+//
+// Works only for postgres
 func WriteDropViewQueries(db *gorm.DB, w *bufio.Writer) error {
 	sql := `SELECT 'DROP VIEW IF EXISTS ' || table_name || ' CASCADE;'
 	FROM information_schema.views
@@ -193,7 +195,8 @@ func WriteDropViewQueries(db *gorm.DB, w *bufio.Writer) error {
 	return appendToSQL(db, sql, w)
 }
 
-// writes sql statements to drop all views to w
+// writes sql statements to drop all views to w.
+//
 // Execute with psql since the postgres driver does not support
 // multiple statements.
 //
@@ -214,60 +217,60 @@ func appendToSQL(db *gorm.DB, sql string, w *bufio.Writer) error {
 	}
 
 	defer rows.Close()
-
 	for rows.Next() {
 		var statement string
 		if err := rows.Scan(&statement); err != nil {
 			return err
 		}
 
+		// Write each drop statement to w and add a new line
 		w.Write([]byte(statement))
 		w.Write([]byte("\n"))
-
-		if err = w.Flush(); err != nil {
-			log.Fatalf("could not flush: %v\n", err)
-		}
-
 	}
 
-	return nil
+	return w.Flush()
+
 }
 
 // Drops all views, functions, triggers
-func MigrateViewsFunctionsAndTriggers(db *gorm.DB, database, user string) {
+// Works only for postgres
+//
+// WARNING: DO NOT run on in tests on a production database unless if doing
+// actual migrations like dropping and re-creating all views, functions and triggers.
+func MigrateViewsFunctionsAndTriggers(db *gorm.DB, database, user string) (output []byte, err error) {
 	tempPath := "/tmp/migrations.sql"
 	tmpFile, err := os.Create(tempPath)
 
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 
+	// Remove the temp file when done
 	defer func() {
 		os.Remove(tempPath)
 	}()
 
+	// Create a buffered writer
 	w := bufio.NewWriter(tmpFile)
 	w.WriteString("SET client_min_messages TO ERROR;\n")
-	if err = WriteDropViewQueries(db, w); err != nil {
-		log.Fatalln(err)
+
+	// Get statements to drop all views
+	if err := WriteDropViewQueries(db, w); err != nil {
+		return nil, err
+	}
+	// Get statements to drop all triggers
+	if err := WriteDropTriggerQueries(db, w); err != nil {
+		return nil, err
+	}
+	// Get statements to drop all funcions and procedures
+	if err := WriteDropFunctionsQueries(db, w); err != nil {
+		return nil, err
 	}
 
-	if err = WriteDropTriggerQueries(db, w); err != nil {
-		log.Fatalln(err)
-	}
-
-	if err = WriteDropFunctionsQueries(db, w); err != nil {
-		log.Fatalln(err)
-	}
-
+	// Close the file to flush the buffer to disk
 	tmpFile.Close()
 
-	// Execute this file in psql
 	cmd := fmt.Sprintf("psql -U %s %s -f %s", user, database, tempPath)
-	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
-	fmt.Println(string(out))
+	return exec.Command("bash", "-c", cmd).CombinedOutput()
 
-	if err != nil {
-		log.Fatalln(err)
-	}
 }

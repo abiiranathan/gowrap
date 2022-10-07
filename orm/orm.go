@@ -1,4 +1,4 @@
-package gowrap
+package orm
 
 import (
 	"errors"

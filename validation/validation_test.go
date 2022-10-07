@@ -1,10 +1,10 @@
-package gowrap_test
+package validation_test
 
 import (
 	"errors"
 	"testing"
 
-	"github.com/abiiranathan/gowrap"
+	"github.com/abiiranathan/gowrap/validation"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -17,7 +17,7 @@ type User struct {
 func TestValidateStructs(t *testing.T) {
 	t.Parallel()
 
-	h := gowrap.NewValidator("binding")
+	h := validation.NewValidator("binding")
 	user := User{}
 
 	// Validate with struct pointer
@@ -83,13 +83,13 @@ func TestValidateStructs(t *testing.T) {
 
 	// Test unsupported types
 	err = h.Validate(20)
-	if !errors.Is(err, gowrap.ErrUnsupportedType) {
+	if !errors.Is(err, validation.ErrUnsupportedType) {
 		t.Errorf("expected ErrUnsupportedType, got %v", err)
 	}
 
 	num := 40
 	err = h.Validate(&num)
-	if !errors.Is(err, gowrap.ErrUnsupportedType) {
+	if !errors.Is(err, validation.ErrUnsupportedType) {
 		t.Errorf("expected ErrUnsupportedType, got %v", err)
 	}
 
@@ -98,11 +98,11 @@ func TestValidateStructs(t *testing.T) {
 func TestIsValidEmail(t *testing.T) {
 	t.Parallel()
 
-	if gowrap.IsValidEmail("email") {
+	if validation.IsValidEmail("email") {
 		t.Errorf("email is invalid but validated as ok")
 	}
 
-	if !gowrap.IsValidEmail("jd@gmail.com") {
+	if !validation.IsValidEmail("jd@gmail.com") {
 		t.Errorf("valid email validates as invalid email")
 	}
 }
@@ -116,7 +116,7 @@ func TestErrorsAlwaysSlice(t *testing.T) {
 		{Age: 30, Name: "Nat"},
 	}
 
-	h := gowrap.NewValidator("binding")
+	h := validation.NewValidator("binding")
 	err := h.Validate(&usersArray)
 
 	if _, ok := err.(validator.ValidationErrors); !ok {
@@ -129,7 +129,7 @@ func TestErrorsAlwaysSlice(t *testing.T) {
 func BenchmarkValidate(b *testing.B) {
 	b.StopTimer()
 
-	h := gowrap.NewValidator("binding")
+	h := validation.NewValidator("binding")
 	users := []User{
 		{Age: 20, Name: "AN", Email: "an@gmail.com"},
 		{Age: 30, Name: "Nat", Email: "nat@gmail.com"},
@@ -140,5 +140,4 @@ func BenchmarkValidate(b *testing.B) {
 		h.Validate(&users)
 		b.StopTimer()
 	}
-
 }

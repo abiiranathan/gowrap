@@ -1,4 +1,4 @@
-package gowrap
+package validation
 
 import (
 	"errors"
