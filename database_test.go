@@ -96,7 +96,11 @@ func TestConnectToPostgres(t *testing.T) {
 		})
 
 		if err != nil {
-			t.Fatalf("connect to real database failed with error: %v", err)
+			t.Errorf("connect to real database failed with error: %v", err)
+		}
+
+		if db != nil {
+			db.NowFunc()
 		}
 	}
 

@@ -28,7 +28,7 @@ type Preload struct {
 	Args []any
 }
 
-func (p *Preload) Apply(db *gorm.DB) *gorm.DB {
+func (p Preload) Apply(db *gorm.DB) *gorm.DB {
 	return db.Preload(p.Query, p.Args...)
 }
 
@@ -47,11 +47,30 @@ func (p Where) Apply(db *gorm.DB) *gorm.DB {
 
 // Add grouping. Group should apear after Join but before Where conditions
 type Group struct {
-	Name string // grouping condition e.g "category DESC"
+	Name string // grouping condition e.g "category"
 }
 
 func (g Group) Apply(db *gorm.DB) *gorm.DB {
 	return db.Group(g.Name)
+}
+
+// Add grouping. Group should apear after Join but before Where conditions
+type Order struct {
+	Name string // grouping condition e.g "category DESC"
+}
+
+func (g Order) Apply(db *gorm.DB) *gorm.DB {
+	return db.Order(g.Name)
+}
+
+// Add grouping. Group should apear after Join but before Where conditions
+type Limit struct {
+	L int
+	O int
+}
+
+func (g Limit) Apply(db *gorm.DB) *gorm.DB {
+	return db.Offset(g.O).Limit(g.L)
 }
 
 type Join struct {
@@ -64,7 +83,7 @@ func (j Join) Apply(db *gorm.DB) *gorm.DB {
 }
 
 type Select struct {
-	Fields []interface{}
+	Fields []any
 }
 
 func (j Select) Apply(db *gorm.DB) *gorm.DB {

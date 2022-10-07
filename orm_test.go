@@ -12,13 +12,20 @@ type Post struct {
 	ID       uint      `json:"id" gorm:"primaryKey"`
 	Title    string    `json:"title" validate:"required,max=255"`
 	CreateAt time.Time `json:"created_at" validate:"omitempty,datetime"`
+	Comments []Comment `json:"comments"`
+}
+
+type Comment struct {
+	ID       uint      `json:"id"`
+	PostID   uint      `json:"post_id"`
+	CreateAt time.Time `json:"created_at"`
 }
 
 func TestORM(t *testing.T) {
 	t.Parallel()
 
 	db := gowrap.ConnectToSqlite3(gowrap.MemorySQLiteDB, true)
-	err := db.AutoMigrate(&Post{})
+	err := db.AutoMigrate(&Post{}, &Comment{})
 
 	if err != nil {
 		t.Fatal("unable on gorm automigrate")
@@ -68,7 +75,8 @@ func TestORM(t *testing.T) {
 
 	// Get a single record by id
 	post := &Post{}
-	err = orm.First(post, p.ID)
+	err = orm.First(post, p.ID, gowrap.Limit{L: 1}, gowrap.Select{Fields: []any{"id", "title"}})
+
 	if err != nil {
 		t.Errorf("db first failed with error: %v", err)
 	}
@@ -79,7 +87,7 @@ func TestORM(t *testing.T) {
 
 	// Get a single record by custom column name
 	foundPost := &Post{}
-	err = orm.FindOne(foundPost, gowrap.Where{Query: "title LIKE ?", Args: []any{"%%My new partially%%"}})
+	err = orm.FindOne(foundPost, gowrap.Where{Query: "title LIKE ?", Args: []any{"%%My new partially%%"}}, gowrap.Select{Fields: []any{"id"}})
 	if err != nil {
 		t.Errorf("db FindOne failed with error: %v", err)
 	}
@@ -91,7 +99,7 @@ func TestORM(t *testing.T) {
 	// Fetch all records from the database
 	posts := []Post{}
 
-	err = orm.FindAll(&posts)
+	err = orm.FindAll(&posts, gowrap.Select{}, gowrap.Order{Name: "id DESC"})
 	if err != nil {
 		t.Errorf("db findAll failed with error: %v", err)
 	}
@@ -104,6 +112,12 @@ func TestORM(t *testing.T) {
 	results, err := gowrap.Paginate(&Post{}, 1, 10, db)
 	if err != nil {
 		t.Errorf("Paginate failed with error: %v", err)
+	}
+
+	// Joins
+	err = orm.FindAll(&posts, gowrap.Preload{Query: "Comments"})
+	if err != nil {
+		t.Error(err)
 	}
 
 	// If page is zero, it's increased to 1
@@ -148,4 +162,9 @@ func TestORM(t *testing.T) {
 
 	err = orm.Delete(Post{})
 	checkError(err)
+
+	// Save new comment
+	c := Comment{CreateAt: db.NowFunc()}
+
+	orm.Insert(&c)
 }

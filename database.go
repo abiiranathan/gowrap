@@ -110,7 +110,7 @@ func ConnectToSqlite3(dbname string, walMode bool) *gorm.DB {
 		dsn += "&_pragma=journal_mode(WAL)"
 	}
 
-	db, err := gorm.Open(sqlite.Open(dsn))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("unable to connect to sqlite database: %v", err)
 	}
