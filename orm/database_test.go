@@ -125,6 +125,15 @@ func TestNewLogger(t *testing.T) {
 	}
 }
 
+type fakeWriter struct {
+	written int
+}
+
+func (f *fakeWriter) Write(b []byte) (n int, err error) {
+	f.written += len(b)
+	return f.written, nil
+}
+
 func TestMigrationScrips(t *testing.T) {
 	if os.Getenv("DSN") == "" {
 		return
@@ -139,7 +148,8 @@ func TestMigrationScrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := bufio.NewWriter(os.Stdout)
+	f := &fakeWriter{}
+	w := bufio.NewWriter(f)
 	err = orm.WriteDropFunctionsQueries(db, w)
 	if err != nil {
 		t.Errorf("WriteDropFunctionsQueries failed with err: %v", err)
