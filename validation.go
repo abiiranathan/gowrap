@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	// validation of an unsupported type
 	ErrUnsupportedType = errors.New("unsupported type")
 )
 
@@ -18,6 +19,9 @@ var (
 //
 // Based on https://github.com/go-playground/validator/v10
 type Validator interface {
+	// Validate obj.
+	//
+	//If validation fails, it return validator.ValidationErrors
 	Validate(obj any) error
 }
 

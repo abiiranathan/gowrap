@@ -1,9 +1,12 @@
 package gowrap
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -167,4 +170,104 @@ func ParseDSN(dsn string, params *DSNParamas) {
 	params.Password = paramsMap["password"]
 	params.SSLMode = paramsMap["sslmode"]
 	params.Timezone = paramsMap["TimeZone"]
+}
+
+// writes sql statements to drop all postgres functions/procedures to w
+func WriteDropFunctionsQueries(db *gorm.DB, w *bufio.Writer) error {
+	sql := `SELECT 'DROP FUNCTION IF EXISTS ' || ns.nspname || '.' || proname 
+	 || '(' || oidvectortypes(proargtypes) || ');' FROM pg_proc INNER JOIN pg_namespace ns
+     ON (pg_proc.pronamespace=ns.oid) WHERE ns.nspname='public' order by proname;`
+
+	return appendToSQL(db, sql, w)
+
+}
+
+// writes sql statements to drop all views to w
+// Important for migrations
+func WriteDropViewQueries(db *gorm.DB, w *bufio.Writer) error {
+	sql := `SELECT 'DROP VIEW IF EXISTS ' || table_name || ' CASCADE;'
+	FROM information_schema.views
+	WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+	AND table_name !~ '^pg_';`
+
+	return appendToSQL(db, sql, w)
+}
+
+// writes sql statements to drop all views to w
+// Execute with psql since the postgres driver does not support
+// multiple statements.
+//
+// this is important for migrations
+func WriteDropTriggerQueries(db *gorm.DB, w *bufio.Writer) error {
+	sql := `SELECT 'DROP TRIGGER IF EXISTS ' || trigger_name || ' ON ' ||
+	event_object_table || ' CASCADE;' FROM information_schema.triggers
+	WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema')
+	AND trigger_name !~ '^pg_';`
+	return appendToSQL(db, sql, w)
+}
+
+// helper function that writes sql statements from executing sql to w
+func appendToSQL(db *gorm.DB, sql string, w *bufio.Writer) error {
+	rows, err := db.Raw(sql).Rows() // (*sql.Rows, error)
+	if err != nil {
+		return err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var statement string
+		if err := rows.Scan(&statement); err != nil {
+			return err
+		}
+
+		w.Write([]byte(statement))
+		w.Write([]byte("\n"))
+
+		if err = w.Flush(); err != nil {
+			log.Fatalf("could not flush: %v\n", err)
+		}
+
+	}
+
+	return nil
+}
+
+// Drops all views, functions, triggers
+func MigrateViewsFunctionsAndTriggers(db *gorm.DB, database, user string) {
+	tempPath := "/tmp/migrations.sql"
+	tmpFile, err := os.Create(tempPath)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer func() {
+		os.Remove(tempPath)
+	}()
+
+	w := bufio.NewWriter(tmpFile)
+	w.WriteString("SET client_min_messages TO ERROR;\n")
+	if err = WriteDropViewQueries(db, w); err != nil {
+		log.Fatalln(err)
+	}
+
+	if err = WriteDropTriggerQueries(db, w); err != nil {
+		log.Fatalln(err)
+	}
+
+	if err = WriteDropFunctionsQueries(db, w); err != nil {
+		log.Fatalln(err)
+	}
+
+	tmpFile.Close()
+
+	// Execute this file in psql
+	cmd := fmt.Sprintf("psql -U %s %s -f %s", user, database, tempPath)
+	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
+	fmt.Println(string(out))
+
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
