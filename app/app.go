@@ -22,6 +22,7 @@ var json = jsoniter.ConfigFastest
 
 type Handler struct {
 	ORM       orm.ORM
+	App       *fiber.App
 	validator validation.Validator
 }
 
@@ -69,6 +70,7 @@ func NewApplication(db *gorm.DB, options ...HandlerOption) *Handler {
 
 	h := &Handler{
 		ORM:       orm.New(db),
+		App:       app,
 		validator: validate,
 	}
 
