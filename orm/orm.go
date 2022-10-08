@@ -23,14 +23,19 @@ type ORM interface {
 	First(v any, id uint, conditions ...Condition) error
 	FindOne(v any, where Where, conditions ...Condition) error
 	FindAll(slicePtr any, conditions ...Condition) error
+	DB() *gorm.DB
 }
 
 type orm struct {
-	DB *gorm.DB
+	db *gorm.DB
 }
 
 func New(db *gorm.DB) ORM {
-	return &orm{DB: db}
+	return &orm{db: db}
+}
+
+func (o *orm) DB() *gorm.DB {
+	return o.db
 }
 
 // validates that v is a pointer
@@ -46,7 +51,7 @@ func (o *orm) Insert(v any) error {
 		return ErrNotPointer
 	}
 
-	return o.DB.Create(v).Error
+	return o.db.Create(v).Error
 }
 
 // Update v in the database. v must have a primary key field(id) set
@@ -55,7 +60,7 @@ func (o *orm) Update(v any) error {
 		return ErrNotPointer
 	}
 
-	return o.DB.Save(v).Error
+	return o.db.Save(v).Error
 
 }
 
@@ -66,7 +71,7 @@ func (o *orm) PartialUpdate(model any, updates any, where Where) error {
 		return ErrNotPointer
 	}
 
-	ret := o.DB.Model(model).Where(where.Query, where.Args...).Updates(updates)
+	ret := o.db.Model(model).Where(where.Query, where.Args...).Updates(updates)
 	if ret.Error != nil {
 		return ret.Error
 	}
@@ -84,7 +89,7 @@ func (o *orm) Delete(v any, conditions ...Condition) error {
 	if !IsPointer(v) {
 		return ErrNotPointer
 	}
-	model := applyConditions(o.DB, conditions...)
+	model := applyConditions(o.db, conditions...)
 	return model.Unscoped().Delete(v).Error
 }
 
@@ -94,7 +99,7 @@ func (o *orm) First(v any, id uint, conditions ...Condition) error {
 	if !IsPointer(v) {
 		return ErrNotPointer
 	}
-	model := applyConditions(o.DB, conditions...)
+	model := applyConditions(o.db, conditions...)
 	return model.First(v, id).Error
 }
 
@@ -105,7 +110,7 @@ func (o *orm) FindOne(v any, where Where, conditions ...Condition) error {
 		return ErrNotPointer
 	}
 
-	model := applyConditions(o.DB.Where(where.Query, where.Args...), conditions...)
+	model := applyConditions(o.db.Where(where.Query, where.Args...), conditions...)
 	return model.First(v).Error
 }
 
@@ -115,7 +120,7 @@ func (o *orm) FindAll(slicePtr any, conditions ...Condition) error {
 		return ErrNotPointer
 	}
 
-	model := applyConditions(o.DB, conditions...)
+	model := applyConditions(o.db, conditions...)
 	return model.Find(slicePtr).Error
 }
 
