@@ -23,6 +23,7 @@ type Validator interface {
 	//
 	//If validation fails, it return validator.ValidationErrors
 	Validate(obj any) error
+	SetTagName(tagName string)
 }
 
 type validate struct {
@@ -34,6 +35,10 @@ func NewValidator(tagName string) Validator {
 	val := validator.New()
 	val.SetTagName(tagName)
 	return &validate{validator: val}
+}
+
+func (val *validate) SetTagName(tagName string) {
+	val.validator.SetTagName(tagName)
 }
 
 // Validates structs inside a slice, returns validator.ValidationErrors
